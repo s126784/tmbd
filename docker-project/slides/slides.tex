@@ -9,6 +9,8 @@
 
 % Logo and footer setup
 \usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{positioning, arrows}
 
 % Custom footer
 \setbeamertemplate{footline}{
@@ -172,7 +174,96 @@ docker-compose ps
 
 {
 \setbeamercolor{frametitle}{bg=darkgreen}
+\begin{frame}{Core Components of Docker}
+    \textbf{Docker Client \& Server (Engine)}: The client sends commands to the server (Docker Engine), which builds, runs, and manages containers. \\
+    
+    \textbf{Docker Images}: A Docker image is a blueprint for creating containers, built using a Dockerfile. \\
+    
+    \textbf{Docker Containers}: A Docker container is a running instance of a Docker image, providing isolated environments for applications. \\
+    
+    \textbf{Docker Registries}: A Docker registry stores and distributes Docker images. Examples include Docker Hub and private registries. \\
+\end{frame}
+\begin{frame}[fragile]{Using Docker for Clustering }
+\textbf{structure}
 
+\begin{verbatim}
+clustering-project/
+├── app/   # Source code for both document and image clustering
+│   ├── document_clustering/    # Document clustering code
+│   │   ├── main.py          # Entry point for document clustering
+│   │   ├── clustering.py  # Core clustering logic (e.g., K-means)
+│   │   ├── utils.py      # Text preprocessing (tokenization, etc)
+│   │   └── requirements.txt    # Document clustering dependencies 
+│   ├── image_clustering/       # Image clustering code
+│   │   ├── main.py          # Entry point for image clustering
+│   │   ├── clustering.py  # Core clustering logic (e.g., DBSCAN)
+│   │   ├── utils.py        # Image preprocessing (resizing, CNN)
+│   │   └── requirements.txt  # Image clustering dependencies (tensorflow)
+├── data/                       # Stores input and output files
+│   ├── documents/              # Raw text documents
+│   ├── images/                 # Raw image files
+
+\end{verbatim}
+\end{frame}
+
+\begin{frame}[fragile]{Using Docker for Clustering }
+\begin{verbatim}
+│   └── processed/  # Processed output (clusters, visualizations)
+├── Dockerfile   # Configuration for containerization
+├── docker-compose.yml  # Multi-container setup for both clustering apps
+├── README.md                   # Project documentation
+└── requirements.txt   # Common dependencies (e.g.,numpy,pandas)
+\end{verbatim} 
+
+
+ \begin{itemize}
+        \item \textbf{`app/`}: Contains source code for both tasks:
+        \begin{itemize}
+            \item \textbf{`document clustering/`}: Includes Python scripts like \texttt{main.py}, \texttt{clustering.py} (e.g., K-means), and \texttt{utils.py} (text preprocessing). Dependencies include \texttt{scikit-learn}, \texttt{nltk}, and \texttt{spaCy}.
+            \item \textbf{`image clustering/`}: Includes scripts like \texttt{main.py}, \texttt{clustering.py}, and \texttt{utils.py} (image preprocessing). Dependencies include \texttt{opencv}, \texttt{PIL}, and \texttt{tensorflow}.
+        \end{itemize}
+        
+        \item \textbf{`data/`}: Stores input and output data:
+        \begin{itemize}
+            \item \textbf{`documents/`}, \textbf{`images/`} (raw files) and \textbf{`processed/`} (output from clustering).
+        \end{itemize}
+    \end{itemize}  
+\end{frame}
+
+\begin{frame}{Dockerfile Components for Document and Image Clustering}
+    \begin{itemize}
+        \item \textbf{Base Image}: \\
+        \texttt{FROM python:3.8-slim} \\
+        A lightweight Python image to start from for both document and image clustering.
+        
+        \item \textbf{Working Directory}: \\
+        \texttt{WORKDIR /app} \\
+        Defines the working directory inside the container.
+        
+        \item \textbf{Copy Application Files}: \\
+        \texttt{COPY . /app} \\
+        Copies project files (document\_clustering/ or image\_clustering/) into the container.
+        
+        \item \textbf{Install Dependencies}: \\
+        \texttt{RUN pip install -r requirements.txt} \\
+       
+   \end{itemize}
+\end{frame}
+        
+        \begin{frame}{Dockerfile Components for Document and Image Clustering}
+    
+        Installs necessary dependencies for the respective clustering task (e.g., \texttt{scikit-learn} for document clustering or \texttt{opencv}, \texttt{tensorflow} for image clustering).
+        \begin{itemize}
+        \item \textbf{Expose Ports (Optional)}: \\
+        \texttt{EXPOSE 8000} \\
+        If exposing a web app or API, define the port to be accessed outside the container.
+        
+        \item \textbf{Run the Application}: \\
+        \textbf{Document Clustering}: \texttt{CMD ["python", "document\_clustering/main.py"]} \\
+        \textbf{Image Clustering}: \texttt{CMD ["python", "image\_clustering/main.py"]} \\
+        Executes the clustering application when the container starts.
+    \end{itemize}
+\end{frame}
 
 
 }
@@ -244,101 +335,108 @@ docker-compose ps
 
 {
 \setbeamercolor{frametitle}{bg=darkslateblue}
-\begin{frame}{Managing Local and Production Environments}
-    \textbf{Local Development: Docker Compose}
+
+\begin{frame}{Performance Optimization with Parallelization}
+    \textbf{Parallel Document Processing}
     \begin{itemize}
-        \item Use \texttt{docker-compose.yml} for local setup.
-        \item Benefits: ease of testing and configuration.
-        \item Example commands:
+        \item Use \texttt{ThreadPoolExecutor} to process multiple documents in parallel:
         \begin{itemize}
-            \item \texttt{docker-compose up --build}
-            \item \texttt{docker-compose down}
-            \item Add \texttt{docker-compose.override.yml} for environment-specific changes.
+            \item OCR: Split documents into pages for concurrent processing.
+            \item Translations: Batch requests for multiple documents.
         \end{itemize}
+        \item Redis caches embeddings to avoid reprocessing.
     \end{itemize}
-    \textbf{Production: Docker Swarm}
+    \textbf{Future Enhancements}
     \begin{itemize}
-        \item Convert \texttt{docker-compose.yml} to Swarm using \texttt{docker stack deploy}.
-        \item Enable high availability and service replication.
-        \item Commands:
-        \begin{itemize}
-            \item \texttt{docker swarm init}
-            \item \texttt{docker stack deploy -c docker-compose.yml <stack\_name>}
-        \end{itemize}
+        \item Implement \texttt{Celery} + Redis for distributed task queues.
+        \item Add more workers to scale up parallel computations.
+    \end{itemize}
+    \textbf{Example Code:}
+    \begin{itemize}
+        \item
+        \begin{scriptsize}
+        \texttt{with ThreadPoolExecutor(max\_workers=4) as executor:}  
+        \texttt{executor.map(process\_document, docs)}
+        \end{scriptsize}
     \end{itemize}
 \end{frame}
 
-\begin{frame}{Parallelizable Text Processing Tasks}
-    \textbf{High-Load Document Processing Tasks}
-    \begin{itemize}
-        \item \textbf{OCR (Optical Character Recognition)}
-        \begin{itemize}
-            \item Divide documents into pages or segments.
-            \item Use Tesseract with multiprocessing.
-        \end{itemize}
-        \item \textbf{Translations}
-        \begin{itemize}
-            \item Batch translations across multiple documents.
-            \item Use APIs supporting parallel requests (e.g., Google Translate API, DeepL).
-        \end{itemize}
-        \item \textbf{Natural Language Processing (NLP)}
-        \begin{itemize}
-            \item Parallel topic modeling or sentiment analysis.
-        \end{itemize}
-        \item \textbf{Parallelization Frameworks}
-        \begin{itemize}
-            \item Celery with RabbitMQ or Redis.
-            \item Python's \texttt{multiprocessing}, \texttt{joblib} for batch processing.
-        \end{itemize}
-    \end{itemize}
+
+\begin{frame}{Cloud Deployment \& Blue-Green Strategy}
+    \begin{columns}[T]
+        \begin{column}{0.5\textwidth}
+            \centering
+            % Resize diagram to fit as an "image"
+            \resizebox{0.85\textwidth}{!}{ % Resizes width to 80% of the slide width
+                \begin{tikzpicture}[node distance=3cm, auto]
+                    % Nodes
+                    \node (loadbalancer) [rectangle, draw, fill=orange!20, minimum width=3cm, minimum height=1cm] {Load Balancer};
+                    \node (blue) [rectangle, draw, fill=blue!20, below left of=loadbalancer, xshift=-2cm, yshift=-1cm] {Blue (Live)};
+                    \node (green) [rectangle, draw, fill=green!20, below right of=loadbalancer, xshift=2cm, yshift=-1cm] {Green (Staging)};
+                    \node (user) [rectangle, draw, fill=yellow!20, above of=loadbalancer, yshift=1cm] {User Request};
+            
+                    % Arrows
+                    \draw[->, thick] (user) -- (loadbalancer) node[midway, right] {};
+                    \draw[->, thick] (loadbalancer) -- (blue) node[midway, above] {Initial Traffic};
+                    \draw[->, dashed, thick] (loadbalancer) -- (green) node[midway, above] {After Validation};
+                    \draw[->, thick] (green) -- (blue) node[midway, below] {Update Live};
+                \end{tikzpicture}
+            }
+        \end{column}
+        
+        \begin{column}{0.52\textwidth}
+            \textbf{Blue-Green Deployment Benefits:}
+            \begin{itemize}
+                \item Two environments \\(Blue = Live, Green = Staging).
+                \item Zero-downtime upgrades.
+                \item Easy rollback in case of failure.
+            \end{itemize}
+        \end{column}
+    \end{columns}
+    
+    \vspace{1cm} % Space to separate the diagram from text
+
+    \begin{columns}[T]
+        \begin{column}{0.65\textwidth}
+            \textbf{Cloud Platforms:}
+            \begin{itemize}
+                \item \textbf{AWS ECS/EKS}: Orchestrates Docker containers.
+                \item \textbf{Azure AKS}: Managed Kubernetes clusters.
+                \item \textbf{DigitalOcean App Platform}: Simplified cloud deployments.
+            \end{itemize}
+        \end{column}
+
+        \hspace{0.1em}
+
+        \begin{column}{0.35\textwidth}
+            \textbf{Next Steps:}
+            \begin{itemize}
+                \item Test load balancer configuration with two API containers locally using Nginx.
+            \end{itemize}
+        \end{column}
+    \end{columns}
+        
 \end{frame}
 
-\begin{frame}{Cloud Deployment with Blue-Green Strategy}
-    \textbf{Cloud Platforms}
-    \begin{itemize}
-        \item \textbf{AWS:} Elastic Beanstalk, ECS/EKS for container orchestration.
-        \item \textbf{Azure:} App Service, AKS for Kubernetes clusters.
-        \item \textbf{DigitalOcean:} App Platform or Kubernetes droplets.
-    \end{itemize}
-    \textbf{Blue-Green Deployment}
-    \begin{itemize}
-        \item Keep two environments (blue = live, green = staging).
-        \item Traffic shift via load balancer after validation.
-        \item Benefits: zero-downtime upgrades and rollback safety.
-    \end{itemize}
-\end{frame}
-
-\begin{frame}{Kubernetes with Docker Containers}
+\begin{frame}{Migration to Kubernetes}
     \textbf{Why Kubernetes?}
     \begin{itemize}
-        \item Advanced orchestration and scaling compared to Docker Swarm.
-        \item Features: self-healing, automated rollouts.
+        \item Supports self-healing, auto-scaling, and automated rollouts.
+        \item Handles complex deployments with better orchestration.
     \end{itemize}
-    \textbf{Key Components}
+    \textbf{Migration Plan}
     \begin{itemize}
-        \item Pods, Deployments, Services, ConfigMaps, and Ingress.
+        \item Convert \texttt{docker-compose.yml} to Kubernetes manifests:
+        \begin{scriptsize}
+        \texttt{kubectl apply -f deployment.yml}
+        \end{scriptsize}
+        \item Use Helm charts for templating reusable manifests.
     \end{itemize}
-    \textbf{Migration Process}
+    \textbf{Key Components:}
     \begin{itemize}
-        \item Convert Docker Compose to Kubernetes manifests (\texttt{kubectl apply -f}).
-        \item Use Helm charts for templating.
-        \item Tools: Minikube for local testing, \texttt{kubectl} for CLI control.
-    \end{itemize}
-\end{frame}
-
-\begin{frame}{Modern Docker-Based Approach vs Legacy System}
-    \textbf{Legacy Approach}
-    \begin{itemize}
-        \item Monolithic deployments.
-        \item Manual scaling and maintenance.
-        \item Infrastructure tightly coupled.
-    \end{itemize}
-    \textbf{Docker-Based Approach}
-    \begin{itemize}
-        \item Microservices with independent scaling.
-        \item Automated deployments and CI/CD.
-        \item Isolated dependencies improve maintainability.
-        \item Faster development cycles and simplified rollbacks.
+        \item \textbf{Pods:} Smallest deployable unit containing containers.
+        \item \textbf{Deployments:} Manage replica sets of pods.
+        \item \textbf{Services:} Expose pods to external requests.
     \end{itemize}
 \end{frame}
 }
