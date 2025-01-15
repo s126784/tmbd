@@ -337,107 +337,148 @@ clustering-project/
 \setbeamercolor{frametitle}{bg=darkslateblue}
 
 \begin{frame}{Performance Optimization with Parallelization}
-    \textbf{Parallel Document Processing}
-    \begin{itemize}
-        \item Use \texttt{ThreadPoolExecutor} to process multiple documents in parallel:
-        \begin{itemize}
-            \item OCR: Split documents into pages for concurrent processing.
-            \item Translations: Batch requests for multiple documents.
-        \end{itemize}
-        \item Redis caches embeddings to avoid reprocessing.
-    \end{itemize}
+    %\textbf{Parallel Document Processing}
+    %\begin{itemize}
+        %\item Use \texttt{ThreadPoolExecutor} to process multiple documents in parallel:
+        %\begin{itemize}
+            %\item OCR: Split documents into pages for concurrent processing.
+            %\item Translations: Batch requests for multiple documents.
+        %\end{itemize}
+        %\item Redis caches embeddings to avoid reprocessing.
+    %\end{itemize}
+    \textbf{Document Processing Flowchart}
+    \begin{center}
+        \resizebox{0.75\textwidth}{!}{ % Adjusted size for better layout
+            \begin{tikzpicture}[node distance=1.35cm, auto]
+            % Nodes
+            \node (input) [rectangle, draw, fill=yellow!30, minimum width=2cm] {Uploaded Document};
+            \node (split) [rectangle, draw, fill=green!20, below of=input, minimum width=3cm] {Split Document into Pages};
+            \node (worker1) [rectangle, draw, fill=blue!20, below left of=split, xshift=-1.5cm, yshift=-1cm] {Worker 1: Page 1 (OCR)};
+            \node (worker2) [rectangle, draw, fill=blue!20, below of=split] {Worker 2: Page 2 (OCR)};
+            \node (worker3) [rectangle, draw, fill=blue!20, below right of=split, xshift=1.5cm, yshift=-1cm] {Worker 3: Page 3 (OCR)};
+            \node (embeddingNode) [rectangle, draw, fill=purple!20, below of=worker2, yshift=-1.5cm, minimum width=3cm] {Embedding Computation};
+            \node (output) [rectangle, draw, fill=red!20, below of=embeddingNode, yshift=-0.7cm, minimum width=3cm] {Aggregate Embeddings Cached in Redis};
+        
+            % Arrows
+            \draw[->, thick] (input) -- (split) node[midway, right] {\scriptsize Split Pages for Parallel Processing};
+            \draw[->, thick] (split) -| (worker1) node[midway, left] {\scriptsize Page 1};
+            \draw[->, thick] (split) -- (worker2) node[midway, right] {\scriptsize Page 2};
+            \draw[->, thick] (split) -| (worker3) node[midway, right] {\scriptsize Page 3};
+            \draw[->, thick] (worker1) |- (embeddingNode) node[midway, above=0.8] {\scriptsize Embedding (Worker 1)};
+            \draw[->, thick] (worker2) -- (embeddingNode) node[midway, above] {\scriptsize Embedding (Worker 2)};
+            \draw[->, thick] (worker3) |- (embeddingNode) node[midway, above=0.8] {\scriptsize Embedding (Worker 3)};
+            \draw[->, thick] (embeddingNode) -- (output) node[midway, right] {\scriptsize Aggregated Embeddings};
+        
+
+        
+            % Note about caching
+            \node (note) [rectangle, draw, fill=orange!20, right of=output, xshift=6cm, minimum width=6cm, text width=4.5cm, align=left] {\small \textbf{Note:} Redis stores computed page embeddings for faster retrieval and parallel processing.
+            It enables efficient distributed task communication.};
+
+            \end{tikzpicture}
+        }
+
+    \end{center}
+
+
     \textbf{Future Enhancements}
     \begin{itemize}
         \item Implement \texttt{Celery} + Redis for distributed task queues.
         \item Add more workers to scale up parallel computations.
     \end{itemize}
-    \textbf{Example Code:}
-    \begin{itemize}
-        \item
-        \begin{scriptsize}
-        \texttt{with ThreadPoolExecutor(max\_workers=4) as executor:}  
-        \texttt{executor.map(process\_document, docs)}
-        \end{scriptsize}
-    \end{itemize}
 \end{frame}
 
-
+% Slide 4: Cloud Deployment & Blue-Green Strategy
 \begin{frame}{Cloud Deployment \& Blue-Green Strategy}
-    \begin{columns}[T]
-        \begin{column}{0.5\textwidth}
-            \centering
-            % Resize diagram to fit as an "image"
-            \resizebox{0.85\textwidth}{!}{ % Resizes width to 80% of the slide width
-                \begin{tikzpicture}[node distance=3cm, auto]
-                    % Nodes
-                    \node (loadbalancer) [rectangle, draw, fill=orange!20, minimum width=3cm, minimum height=1cm] {Load Balancer};
-                    \node (blue) [rectangle, draw, fill=blue!20, below left of=loadbalancer, xshift=-2cm, yshift=-1cm] {Blue (Live)};
-                    \node (green) [rectangle, draw, fill=green!20, below right of=loadbalancer, xshift=2cm, yshift=-1cm] {Green (Staging)};
-                    \node (user) [rectangle, draw, fill=yellow!20, above of=loadbalancer, yshift=1cm] {User Request};
-            
-                    % Arrows
-                    \draw[->, thick] (user) -- (loadbalancer) node[midway, right] {};
-                    \draw[->, thick] (loadbalancer) -- (blue) node[midway, above] {Initial Traffic};
-                    \draw[->, dashed, thick] (loadbalancer) -- (green) node[midway, above] {After Validation};
-                    \draw[->, thick] (green) -- (blue) node[midway, below] {Update Live};
-                \end{tikzpicture}
-            }
-        \end{column}
+            %\textbf{Blue-Green Deployment Flowchart}
+            \resizebox{1.0\textwidth}{!}{
+            \begin{tikzpicture}[node distance=1.7cm, auto]
+            % Nodes
+            \node (user) [rectangle, draw, fill=yellow!30] {User Request};
+            \node (lb) [rectangle, draw, fill=orange!20, below of=user] {Load Balancer};
+            \node (blue) [rectangle, draw, fill=blue!20, left of=lb, xshift=-4cm] {Blue (Live - v1)};
+            \node (green) [rectangle, draw, fill=green!20, right of=lb, xshift=4cm] {Green (Staging - v2)};
+            \node (validation) [rectangle, draw, fill=red!20, below of=green, yshift=-1.5cm] {Validation/Test Results};
+            \node (approval) [rectangle, draw, fill=purple!20, below of=validation, yshift=-1.5cm] {Manual Approval};
+            \node (trafficGreen) [rectangle, draw, fill=green!40, right of=validation, xshift=4cm] {Traffic Routed to Green (v2)};
+            \node (rollback) [rectangle, draw, fill=red!30, left of=validation, xshift=-4cm] {Rollback to Blue (v1)};
+            \node (alert) [rectangle, draw, fill=red!10, below of=rollback, yshift=-1cm] {Alert \& Emergency Shutdown};
         
-        \begin{column}{0.52\textwidth}
-            \textbf{Blue-Green Deployment Benefits:}
+            % Arrows
+            \draw[->, thick] (user) -- (lb) node[midway] {\scriptsize User Traffic};
+            \draw[->, thick] (lb) -- (blue) node[midway, above] {\scriptsize Initial Traffic (v1)};
+            \draw[->, thick] (lb) -- (green) node[midway, above=0.3] {\scriptsize Traffic Directed to Staging};
+            \draw[->, thick] (green) -- (validation) node[midway, right] {\scriptsize Run Tests/Validation};
+            \draw[->, thick] (validation) -- (trafficGreen) node[midway, above=0.4] {\scriptsize Validation Passed};
+            \draw[->, thick] (validation) -- (approval) node[midway, above] {\scriptsize Requires Human Approval};
+            \draw[->, thick] (validation) -- (rollback) node[midway, above=0.4] {\scriptsize Validation Failed - Rollback};
+            \draw[->, thick] (rollback) -- (alert) node[midway, right] {\scriptsize Rollback Failed};
+            \draw[->, thick] (approval) -- (trafficGreen) node[midway, right] {\scriptsize Approved - Full Rollout};
+            \end{tikzpicture}
+
+
+            }\\
+            \textbf{Key Benefits:}
             \begin{itemize}
-                \item Two environments \\(Blue = Live, Green = Staging).
                 \item Zero-downtime upgrades.
-                \item Easy rollback in case of failure.
+                \item Easy rollback if staging fails.
+                \item Safer deployments with validation.
             \end{itemize}
-        \end{column}
-    \end{columns}
-    
-    \vspace{1cm} % Space to separate the diagram from text
-
-    \begin{columns}[T]
-        \begin{column}{0.65\textwidth}
-            \textbf{Cloud Platforms:}
-            \begin{itemize}
-                \item \textbf{AWS ECS/EKS}: Orchestrates Docker containers.
-                \item \textbf{Azure AKS}: Managed Kubernetes clusters.
-                \item \textbf{DigitalOcean App Platform}: Simplified cloud deployments.
-            \end{itemize}
-        \end{column}
-
-        \hspace{0.1em}
-
-        \begin{column}{0.35\textwidth}
-            \textbf{Next Steps:}
-            \begin{itemize}
-                \item Test load balancer configuration with two API containers locally using Nginx.
-            \end{itemize}
-        \end{column}
-    \end{columns}
-        
+            
 \end{frame}
 
+\begin{frame}{Cloud Development & Blue-Green Strategy}
+    \textbf{Cloud Platforms:}
+            \begin{itemize}
+                \item AWS ECS/EKS: Docker container orchestration.
+                \item Azure AKS: Managed Kubernetes clusters.
+                \item DigitalOcean App Platform: Simplified deployments.
+            \end{itemize}
+    \vspace{0.05cm}
+    
+    \textbf{Next Steps:}
+    \begin{itemize}
+        \item Test load balancer configuration locally with Nginx.
+    \end{itemize}
+\end{frame}
+
+
+% Slide 5: Migration to Kubernetes
 \begin{frame}{Migration to Kubernetes}
-    \textbf{Why Kubernetes?}
-    \begin{itemize}
-        \item Supports self-healing, auto-scaling, and automated rollouts.
-        \item Handles complex deployments with better orchestration.
-    \end{itemize}
-    \textbf{Migration Plan}
-    \begin{itemize}
-        \item Convert \texttt{docker-compose.yml} to Kubernetes manifests:
-        \begin{scriptsize}
-        \texttt{kubectl apply -f deployment.yml}
-        \end{scriptsize}
-        \item Use Helm charts for templating reusable manifests.
-    \end{itemize}
-    \textbf{Key Components:}
-    \begin{itemize}
-        \item \textbf{Pods:} Smallest deployable unit containing containers.
-        \item \textbf{Deployments:} Manage replica sets of pods.
-        \item \textbf{Services:} Expose pods to external requests.
-    \end{itemize}
+
+\begin{columns}[T]
+    \begin{column}{0.5\textwidth}
+        \textbf{Why Kubernetes?}
+        \begin{itemize}
+            \item Self-healing, auto-scaling, and automated rollouts.
+            \item Handles complex deployments with better orchestration.
+        \end{itemize}
+    \end{column}
+        \vspace{0.5cm}
+    \begin{column}{0.5\textwidth}
+        \textbf{Migration Plan}
+        \begin{itemize}
+            \item Convert \texttt{docker-compose.yml} to Kubernetes manifests using:
+            \begin{scriptsize}
+            \texttt{kubectl apply -f deployment.yml}
+            \end{scriptsize}
+            \item Use Helm charts for templating reusable manifests.
+        \end{itemize}
+    \end{column}
+\end{columns}
+
+\vspace{0.4cm}
+
+\textbf{Key Kubernetes Components:}
+\begin{center}
+    \begin{tabular}{|p{3cm}|p{6cm}|}
+        \hline
+        \textbf{Component} & \textbf{Purpose} \\ \hline
+        \textbf{Pods}       & Smallest deployable unit containing containers. \\ \hline
+        \textbf{Deployments} & Manage replica sets of pods to ensure availability and updates. \\ \hline
+        \textbf{Services}   & Expose pods to external traffic and other components. \\ \hline
+    \end{tabular}
+\end{center}
 \end{frame}
 }
 
