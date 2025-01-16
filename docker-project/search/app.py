@@ -3,58 +3,16 @@ from elasticsearch import Elasticsearch
 import redis
 import json
 import logging
-import time
-import os
 from concurrent.futures import ThreadPoolExecutor
-from elasticsearch.exceptions import ConnectionError
-
-app = Flask(__name__)
+import time
 
 # Configure logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
-# Initialize connections with retry logic
-def init_elasticsearch(max_retries=5, delay=5):
-    """Initialize Elasticsearch connection with retry logic"""
-    for attempt in range(max_retries):
-        try:
-            logger.info(f"Attempting to connect to Elasticsearch (attempt {attempt + 1}/{max_retries})")
-            es = Elasticsearch(['http://elasticsearch:9200'])
-            # Test the connection
-            es.info()
-            logger.info("Successfully connected to Elasticsearch")
-            return es
-        except ConnectionError as e:
-            if attempt == max_retries - 1:
-                logger.error(f"Failed to connect to Elasticsearch after {max_retries} attempts")
-                raise
-            logger.warning(f"Connection attempt {attempt + 1} failed, retrying in {delay} seconds...")
-            time.sleep(delay)
-
-def init_redis(max_retries=5, delay=5):
-    """Initialize Redis connection with retry logic"""
-    for attempt in range(max_retries):
-        try:
-            logger.info(f"Attempting to connect to Redis (attempt {attempt + 1}/{max_retries})")
-            redis_client = redis.Redis(host='redis', port=6379)
-            redis_client.ping()  # Test the connection
-            logger.info("Successfully connected to Redis")
-            return redis_client
-        except redis.ConnectionError as e:
-            if attempt == max_retries - 1:
-                logger.error(f"Failed to connect to Redis after {max_retries} attempts")
-                raise
-            logger.warning(f"Connection attempt {attempt + 1} failed, retrying in {delay} seconds...")
-            time.sleep(delay)
-
-# Initialize connections
-try:
-    es = init_elasticsearch()
-    redis_client = init_redis()
-except Exception as e:
-    logger.error(f"Fatal error during initialization: {str(e)}")
-    raise
+app = Flask(__name__)
+es = Elasticsearch(['http://elasticsearch:9200'])
+redis_client = redis.Redis(host='redis', port=6379)
 
 def create_index():
     """Create Elasticsearch index with appropriate mappings"""
@@ -91,13 +49,110 @@ def create_index():
             logger.info(f"Created index '{index_name}'")
     except Exception as e:
         logger.error(f"Error creating index: {str(e)}")
-        raise
 
-# Rest of the code remains the same...
-# (Previous route handlers and functions)
+def index_document(doc):
+    """Index a single document in Elasticsearch"""
+    try:
+        document = {
+            'content': doc.get('text_preview', ''),
+            'title': doc.get('filename', ''),
+            'embedding': doc.get('embedding', []),
+            'stats': doc.get('stats', {}),
+            'job_id': doc.get('job_id')
+        }
+
+        es.index(
+            index="documents",
+            document=document,
+            id=doc.get('job_id')
+        )
+        logger.info(f"Successfully indexed document: {document['title']}")
+        return True
+    except Exception as e:
+        logger.error(f"Error indexing document: {str(e)}")
+        return False
+
+@app.route('/index', methods=['POST'])
+def index_documents():
+    """Endpoint to index multiple documents"""
+    if not request.is_json:
+        logger.error("Request is not JSON")
+        return jsonify({'error': 'Request must be JSON'}), 400
+
+    documents = request.json.get('documents', [])
+    if not documents:
+        logger.error("No documents provided")
+        return jsonify({'error': 'No documents provided'}), 400
+
+    try:
+        with ThreadPoolExecutor() as executor:
+            results = list(executor.map(index_document, documents))
+
+        success_count = sum(1 for r in results if r)
+        failed_count = len(documents) - success_count
+
+        logger.info(f"Indexed {success_count} documents, {failed_count} failed")
+
+        return jsonify({
+            'status': 'success',
+            'indexed_count': success_count,
+            'failed_count': failed_count,
+            'total_documents': len(documents)
+        })
+    except Exception as e:
+        logger.error(f"Error indexing documents: {str(e)}")
+        return jsonify({
+            'error': 'Error indexing documents',
+            'details': str(e)
+        }), 500
+
+@app.route('/status', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    try:
+        es_health = es.cluster.health()
+        redis_health = redis_client.ping()
+        return jsonify({
+            'status': 'healthy',
+            'elasticsearch': es_health,
+            'redis': redis_health
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e)
+        }), 500
+
+def wait_for_services():
+    """Wait for required services to be available"""
+    retries = 30
+    delay = 2
+
+    # Wait for Elasticsearch
+    for i in range(retries):
+        try:
+            es.cluster.health(wait_for_status='yellow', timeout='5s')
+            logger.info("Elasticsearch is ready")
+            break
+        except Exception as e:
+            if i == retries - 1:
+                raise
+            logger.warning(f"Waiting for Elasticsearch... ({i+1}/{retries})")
+            time.sleep(delay)
+
+    # Wait for Redis
+    for i in range(retries):
+        try:
+            redis_client.ping()
+            logger.info("Redis is ready")
+            break
+        except Exception as e:
+            if i == retries - 1:
+                raise
+            logger.warning(f"Waiting for Redis... ({i+1}/{retries})")
+            time.sleep(delay)
 
 if __name__ == '__main__':
-    # Wait for services to be ready
-    time.sleep(10)  # Give Elasticsearch and Redis time to start
+    wait_for_services()
     create_index()
     app.run(host='0.0.0.0', port=5002)

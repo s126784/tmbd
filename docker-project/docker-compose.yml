@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   nginx:
     image: nginx:alpine
@@ -23,15 +21,12 @@ services:
     expose:
       - "8000"
     depends_on:
-      search:
-        condition: service_healthy
-      document-processor:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      - document-processor
+      - search
+    environment:
+      - PROCESSOR_URL=http://document-processor:5001
+      - SEARCH_URL=http://search:5002
+    restart: unless-stopped
 
   document-processor:
     build: ./document-processor

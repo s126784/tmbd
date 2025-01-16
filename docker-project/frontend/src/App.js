@@ -7,6 +7,8 @@ function App() {
   const [documentData, setDocumentData] = useState(null);
   const [clusterData, setClusterData] = useState(null);
 
+  console.log('documentData:', documentData);
+
   const handleDocumentsProcessed = (data) => {
     setDocumentData(data);
   };
